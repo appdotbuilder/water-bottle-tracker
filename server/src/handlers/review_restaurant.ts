@@ -1,17 +1,47 @@
+import { db } from '../db';
+import { restaurantsTable } from '../db/schema';
 import { type ReviewRestaurantInput, type SuccessResponse } from '../schema';
+import { eq, and } from 'drizzle-orm';
 
 export async function reviewRestaurant(input: ReviewRestaurantInput): Promise<SuccessResponse> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is to allow authenticated admins to approve or reject
-    // pending restaurant submissions. Should validate that the restaurant exists and is pending,
-    // update the submission_status to 'approved' or 'rejected', set reviewed_at timestamp,
-    // record the reviewing admin's username, and optionally save admin notes.
-    // Should only be accessible to authenticated admin users.
-    
+  try {
+    // First, verify the restaurant exists and is in pending status
+    const existingRestaurants = await db.select()
+      .from(restaurantsTable)
+      .where(
+        and(
+          eq(restaurantsTable.id, input.id),
+          eq(restaurantsTable.submission_status, 'pending')
+        )
+      )
+      .execute();
+
+    if (existingRestaurants.length === 0) {
+      throw new Error('Restaurant not found or not in pending status');
+    }
+
+    // Determine the new status based on action
+    const newStatus = input.action === 'approve' ? 'approved' : 'rejected';
+
+    // Update the restaurant with review information
+    await db.update(restaurantsTable)
+      .set({
+        submission_status: newStatus,
+        reviewed_at: new Date(),
+        reviewed_by: input.reviewed_by,
+        notes: input.notes || null
+      })
+      .where(eq(restaurantsTable.id, input.id))
+      .execute();
+
     const actionMessage = input.action === 'approve' ? 'approved' : 'rejected';
     
     return {
-        success: true,
-        message: `Restaurant submission has been ${actionMessage} by ${input.reviewed_by}.`
+      success: true,
+      message: `Restaurant submission has been ${actionMessage} by ${input.reviewed_by}.`
     };
+  } catch (error) {
+    console.error('Restaurant review failed:', error);
+    throw error;
+  }
 }

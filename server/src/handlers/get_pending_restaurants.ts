@@ -1,24 +1,31 @@
+import { db } from '../db';
+import { restaurantsTable } from '../db/schema';
 import { type PendingRestaurant } from '../schema';
+import { eq } from 'drizzle-orm';
 
-export async function getPendingRestaurants(): Promise<PendingRestaurant[]> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is to fetch all restaurants awaiting admin review
-    // for display in the administrative panel. Should only be accessible to authenticated admins.
-    // Should filter by submission_status = 'pending' and return full restaurant details
-    // including submission timestamp and current notes for admin decision making.
-    
-    return [
-        // Placeholder data structure
-        {
-            id: 2,
-            name: "Pending Restaurant",
-            address: "456 Oak St, City, State",
-            latitude: 40.7589,
-            longitude: -73.9851,
-            water_billing_policy: 'paid' as const,
-            submission_status: 'pending' as const,
-            submitted_at: new Date(),
-            notes: null
-        }
-    ];
-}
+export const getPendingRestaurants = async (): Promise<PendingRestaurant[]> => {
+  try {
+    // Query restaurants with pending status
+    const results = await db.select()
+      .from(restaurantsTable)
+      .where(eq(restaurantsTable.submission_status, 'pending'))
+      .execute();
+
+    // Convert results to match PendingRestaurant type
+    // No numeric conversions needed - latitude/longitude are real type (already numbers)
+    return results.map(restaurant => ({
+      id: restaurant.id,
+      name: restaurant.name,
+      address: restaurant.address,
+      latitude: restaurant.latitude,
+      longitude: restaurant.longitude,
+      water_billing_policy: restaurant.water_billing_policy,
+      submission_status: restaurant.submission_status,
+      submitted_at: restaurant.submitted_at,
+      notes: restaurant.notes
+    }));
+  } catch (error) {
+    console.error('Failed to fetch pending restaurants:', error);
+    throw error;
+  }
+};

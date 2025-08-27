@@ -1,23 +1,31 @@
+import { db } from '../db';
+import { restaurantsTable } from '../db/schema';
 import { type Restaurant } from '../schema';
+import { eq } from 'drizzle-orm';
 
-export async function getRestaurantById(id: number): Promise<Restaurant | null> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is to fetch a specific restaurant by its ID
-    // for detailed view or admin review purposes. Should return full restaurant details
-    // including all metadata like submission status, review information, and notes.
-    // Returns null if restaurant with given ID is not found.
-    
+export const getRestaurantById = async (id: number): Promise<Restaurant | null> => {
+  try {
+    // Query for restaurant by ID
+    const results = await db.select()
+      .from(restaurantsTable)
+      .where(eq(restaurantsTable.id, id))
+      .execute();
+
+    // Return null if no restaurant found
+    if (results.length === 0) {
+      return null;
+    }
+
+    const restaurant = results[0];
+
+    // Convert real (float) columns back to numbers for latitude/longitude
     return {
-        id: id,
-        name: "Sample Restaurant Detail",
-        address: "789 Pine St, City, State",
-        latitude: 40.7505,
-        longitude: -73.9934,
-        water_billing_policy: 'free' as const,
-        submission_status: 'approved' as const,
-        submitted_at: new Date(),
-        reviewed_at: new Date(),
-        reviewed_by: "admin_user",
-        notes: "Verified water policy during site visit"
+      ...restaurant,
+      latitude: Number(restaurant.latitude),
+      longitude: Number(restaurant.longitude)
     };
-}
+  } catch (error) {
+    console.error('Failed to fetch restaurant by ID:', error);
+    throw error;
+  }
+};
