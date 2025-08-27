@@ -1,30 +1,32 @@
 import { db } from '../db';
 import { restaurantsTable } from '../db/schema';
+import { eq } from 'drizzle-orm';
 import { type ReviewRestaurantInput, type SuccessResponse } from '../schema';
-import { eq, and } from 'drizzle-orm';
 
-export async function reviewRestaurant(input: ReviewRestaurantInput): Promise<SuccessResponse> {
+export const reviewRestaurant = async (input: ReviewRestaurantInput): Promise<SuccessResponse> => {
   try {
-    // First, verify the restaurant exists and is in pending status
-    const existingRestaurants = await db.select()
+    // First check if restaurant exists and is in pending status
+    const existingRestaurants = await db
+      .select()
       .from(restaurantsTable)
-      .where(
-        and(
-          eq(restaurantsTable.id, input.id),
-          eq(restaurantsTable.submission_status, 'pending')
-        )
-      )
+      .where(eq(restaurantsTable.id, input.id))
       .execute();
 
     if (existingRestaurants.length === 0) {
       throw new Error('Restaurant not found or not in pending status');
     }
 
-    // Determine the new status based on action
+    const restaurant = existingRestaurants[0];
+    if (restaurant.submission_status !== 'pending') {
+      throw new Error('Restaurant not found or not in pending status');
+    }
+
+    // Determine the new status based on the action
     const newStatus = input.action === 'approve' ? 'approved' : 'rejected';
 
-    // Update the restaurant with review information
-    await db.update(restaurantsTable)
+    // Update the restaurant record
+    const result = await db
+      .update(restaurantsTable)
       .set({
         submission_status: newStatus,
         reviewed_at: new Date(),
@@ -32,16 +34,17 @@ export async function reviewRestaurant(input: ReviewRestaurantInput): Promise<Su
         notes: input.notes || null
       })
       .where(eq(restaurantsTable.id, input.id))
+      .returning()
       .execute();
 
-    const actionMessage = input.action === 'approve' ? 'approved' : 'rejected';
+    const actionPastTense = input.action === 'approve' ? 'approved' : 'rejected';
     
     return {
       success: true,
-      message: `Restaurant submission has been ${actionMessage} by ${input.reviewed_by}.`
+      message: `Restaurant submission has been ${actionPastTense} by ${input.reviewed_by}.`
     };
   } catch (error) {
     console.error('Restaurant review failed:', error);
     throw error;
   }
-}
+};

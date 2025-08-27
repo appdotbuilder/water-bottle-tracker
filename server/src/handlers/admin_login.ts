@@ -1,57 +1,63 @@
 import { db } from '../db';
 import { adminUsersTable } from '../db/schema';
-import { type AdminLoginInput } from '../schema';
 import { eq } from 'drizzle-orm';
+import { type AdminLoginInput, type AdminLoginResponse } from '../schema';
 
-export async function adminLogin(input: AdminLoginInput): Promise<{ success: boolean; token?: string; message: string }> {
+// Password verification using Bun's built-in password verification
+const verifyPassword = async (password: string, hash: string): Promise<boolean> => {
+  return await Bun.password.verify(password, hash);
+};
+
+// Generate JWT-like token (simple base64 encoded payload)
+const generateToken = (userId: number, username: string): string => {
+  const now = Math.floor(Date.now() / 1000);
+  const payload = {
+    userId,
+    username,
+    iat: now,
+    exp: now + (24 * 60 * 60) // 24 hours expiration
+  };
+  return Buffer.from(JSON.stringify(payload)).toString('base64');
+};
+
+export const adminLogin = async (input: AdminLoginInput): Promise<AdminLoginResponse> => {
   try {
-    // Query admin user by username
-    const users = await db.select()
+    // Find admin user by username
+    const adminUsers = await db
+      .select()
       .from(adminUsersTable)
       .where(eq(adminUsersTable.username, input.username))
       .execute();
 
-    if (users.length === 0) {
+    if (adminUsers.length === 0) {
       return {
         success: false,
         message: 'Invalid username or password'
       };
     }
 
-    const user = users[0];
+    const adminUser = adminUsers[0];
 
-    // Verify password using Bun's built-in password hashing
-    const isPasswordValid = await Bun.password.verify(input.password, user.password_hash);
+    // Verify password
+    const isValidPassword = await verifyPassword(input.password, adminUser.password_hash);
 
-    if (!isPasswordValid) {
+    if (!isValidPassword) {
       return {
         success: false,
         message: 'Invalid username or password'
       };
     }
 
-    // Generate JWT token
-    const payload = {
-      userId: user.id,
-      username: user.username,
-      iat: Math.floor(Date.now() / 1000),
-      exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60) // 24 hours expiration
-    };
-
-    // For production, use a proper JWT library and secret from environment
-    // For now, using a simple base64 encoded payload as a token
-    const token = Buffer.from(JSON.stringify(payload)).toString('base64');
-
+    // Login successful - generate token
+    const token = generateToken(adminUser.id, adminUser.username);
+    
     return {
       success: true,
-      token,
-      message: `Welcome back, ${user.username}!`
+      message: `Welcome back, ${adminUser.username}!`,
+      token
     };
   } catch (error) {
     console.error('Admin login failed:', error);
-    return {
-      success: false,
-      message: 'Authentication failed. Please try again.'
-    };
+    throw error;
   }
-}
+};

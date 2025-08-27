@@ -85,3 +85,12 @@ export const successResponseSchema = z.object({
 });
 
 export type SuccessResponse = z.infer<typeof successResponseSchema>;
+
+// Response schema for admin login (includes token)
+export const adminLoginResponseSchema = z.object({
+  success: z.boolean(),
+  message: z.string(),
+  token: z.string().optional() // Only present on successful login
+});
+
+export type AdminLoginResponse = z.infer<typeof adminLoginResponseSchema>;

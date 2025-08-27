@@ -1,12 +1,13 @@
 import { db } from '../db';
 import { restaurantsTable } from '../db/schema';
-import { type SubmitRestaurantInput, type SuccessResponse } from '../schema';
 import { eq, and } from 'drizzle-orm';
+import { type SubmitRestaurantInput, type SuccessResponse } from '../schema';
 
-export async function submitRestaurant(input: SubmitRestaurantInput): Promise<SuccessResponse> {
+export const submitRestaurant = async (input: SubmitRestaurantInput): Promise<SuccessResponse> => {
   try {
-    // Check for duplicate restaurant by name and address
-    const existingRestaurant = await db.select()
+    // Check for duplicate restaurant (same name AND address)
+    const existingRestaurants = await db
+      .select()
       .from(restaurantsTable)
       .where(
         and(
@@ -16,22 +17,20 @@ export async function submitRestaurant(input: SubmitRestaurantInput): Promise<Su
       )
       .execute();
 
-    if (existingRestaurant.length > 0) {
+    if (existingRestaurants.length > 0) {
       throw new Error(`Restaurant "${input.name}" at "${input.address}" has already been submitted`);
     }
 
-    // Insert new restaurant with 'pending' status
-    await db.insert(restaurantsTable)
+    // Insert restaurant record with pending status (default)
+    const result = await db.insert(restaurantsTable)
       .values({
         name: input.name,
         address: input.address,
         latitude: input.latitude,
         longitude: input.longitude,
-        water_billing_policy: input.water_billing_policy,
-        submission_status: 'pending'
-        // submitted_at will be set automatically by defaultNow()
-        // reviewed_at, reviewed_by, and notes remain null for pending status
+        water_billing_policy: input.water_billing_policy
       })
+      .returning()
       .execute();
 
     return {
@@ -42,4 +41,4 @@ export async function submitRestaurant(input: SubmitRestaurantInput): Promise<Su
     console.error('Restaurant submission failed:', error);
     throw error;
   }
-}
+};

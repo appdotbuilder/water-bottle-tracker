@@ -1,31 +1,33 @@
 import { db } from '../db';
 import { restaurantsTable } from '../db/schema';
-import { type PendingRestaurant } from '../schema';
 import { eq } from 'drizzle-orm';
+import { type PendingRestaurant } from '../schema';
 
 export const getPendingRestaurants = async (): Promise<PendingRestaurant[]> => {
   try {
-    // Query restaurants with pending status
-    const results = await db.select()
+    const results = await db
+      .select({
+        id: restaurantsTable.id,
+        name: restaurantsTable.name,
+        address: restaurantsTable.address,
+        latitude: restaurantsTable.latitude,
+        longitude: restaurantsTable.longitude,
+        water_billing_policy: restaurantsTable.water_billing_policy,
+        submission_status: restaurantsTable.submission_status,
+        submitted_at: restaurantsTable.submitted_at,
+        notes: restaurantsTable.notes
+      })
       .from(restaurantsTable)
       .where(eq(restaurantsTable.submission_status, 'pending'))
       .execute();
 
-    // Convert results to match PendingRestaurant type
-    // No numeric conversions needed - latitude/longitude are real type (already numbers)
-    return results.map(restaurant => ({
-      id: restaurant.id,
-      name: restaurant.name,
-      address: restaurant.address,
-      latitude: restaurant.latitude,
-      longitude: restaurant.longitude,
-      water_billing_policy: restaurant.water_billing_policy,
-      submission_status: restaurant.submission_status,
-      submitted_at: restaurant.submitted_at,
-      notes: restaurant.notes
+    return results.map(result => ({
+      ...result,
+      // Convert dates to proper Date objects
+      submitted_at: new Date(result.submitted_at)
     }));
   } catch (error) {
-    console.error('Failed to fetch pending restaurants:', error);
+    console.error('Failed to get pending restaurants:', error);
     throw error;
   }
 };
